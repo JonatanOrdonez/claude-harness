@@ -5,7 +5,7 @@ Librería mínima en TypeScript (Node 20+) con funciones aritméticas en `src/op
 ## Comandos
 
 - Instalar: `npm install`
-- Tests: `npm test` (usa `node:test` ejecutado con `tsx`, sin librerías de testing)
+- Tests: `npm test` (`node:test` ejecutado con `tsx`)
 - Tipos: `npm run typecheck` (`tsc`, no genera archivos)
 - Lint: `npm run lint` (autofix: `npm run lint:fix`)
 
@@ -14,16 +14,13 @@ Librería mínima en TypeScript (Node 20+) con funciones aritméticas en `src/op
 - `src/operations.ts`: una función exportada por operación (`add`, `subtract`, `multiply`, `divide`).
 - `test/operations.test.ts`: tests de esas funciones.
 
-## Convenciones
+## Convenciones generales
 
-- TypeScript en modo `strict`. CommonJS (sin `"type": "module"`); los imports van **sin extensión**: `import { add } from '../src/operations';`.
-- Sin `any` ni `@ts-ignore`. Tipar parámetros y retorno: `export function add(a: number, b: number): number`.
-- Una función pura por operación, exportada por nombre. Sin dependencias de runtime.
-- Estilo (lo exige ESLint): comillas simples, punto y coma, indentación de 2 espacios, coma final en listas multilínea.
-- Nombres en inglés, comentarios y mensajes de error en español.
-- Los tipos reemplazan la validación de argumentos: no se valida `typeof` en runtime.
-- Casos inválidos de dominio (por ejemplo dividir entre cero) lanzan `RangeError`; nunca devuelven `Infinity` ni `NaN`.
-- Cada operación nueva lleva sus tests: caso feliz, negativos/decimales y casos de error.
+- Comentarios, mensajes de error y nombres de test en español; identificadores en inglés.
+- Todo cambio de comportamiento lleva sus tests.
+- Las reglas específicas están en `.claude/rules/` y se cargan según el archivo que se edite:
+  - `typescript.md` para `src/**/*.ts`
+  - `tests.md` para `test/**/*.ts`
 
 ## Antes de dar una tarea por terminada
 

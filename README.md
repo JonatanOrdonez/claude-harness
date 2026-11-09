@@ -34,6 +34,7 @@ Idea clave: **el modelo propone, el harness controla.** Un prompt es una petici�
 | Pieza | Archivo | Quién la ejecuta | Para qué sirve |
 |---|---|---|---|
 | Memoria del proyecto | `CLAUDE.md` | Claude la lee al iniciar | Contexto: comandos, estructura, convenciones |
+| Rules | `.claude/rules/<nombre>.md` | Claude las carga al tocar archivos que coincidan con `paths` | Convenciones por tipo de archivo (TypeScript, tests) |
 | Configuración | `.claude/settings.json` | El harness | Permisos y hooks |
 | Skills | `.claude/skills/<nombre>/SKILL.md` | Claude decide (o tú con `/nombre`) | Recetas paso a paso reutilizables |
 | Agentes | `.claude/agents/<nombre>.md` | Claude los delega | Subagentes con su propio contexto, herramientas y modelo |
@@ -41,6 +42,7 @@ Idea clave: **el modelo propone, el harness controla.** Un prompt es una petici�
 
 **CLAUDE.md vs skill vs hook** (la pregunta más común):
 - *CLAUDE.md*: "esto es cierto siempre en este proyecto". Es una **sugerencia** que Claude puede olvidar.
+- *Rule*: "así debe ser el código de este tipo de archivo". Se carga **solo al tocar** esos archivos (`paths`).
 - *Skill*: "así se hace esta tarea concreta". Se carga **solo cuando hace falta**.
 - *Hook*: "esto debe pasar sí o sí". Es **código determinista**; no depende de que Claude se acuerde.
 
@@ -54,6 +56,9 @@ claude/
 ├── CLAUDE.md                      # memoria del proyecto
 ├── .claude/
 │   ├── settings.json              # permisos + hooks
+│   ├── rules/
+│   │   ├── typescript.md          # paths: src/**/*.ts
+│   │   └── tests.md               # paths: test/**/*.ts
 │   ├── skills/
 │   │   └── add-operation/SKILL.md
 │   └── agents/
@@ -93,11 +98,12 @@ La tarea es siempre la misma: **agregar operaciones a `operations.ts`**. Lo que 
 |---|---|---|
 | 0 | suma | nada |
 | 1 | resta | `CLAUDE.md` |
-| 2 | (repetir resta) | permisos |
-| 3 | multiplicación | agentes |
-| 4 | división | skill `/add-operation` |
-| 5 | probar el lint | hooks |
-| 6 | todo en un comando | `harness.sh` |
+| 2 | (repetir resta) | rules |
+| 3 | (repetir resta) | permisos |
+| 4 | multiplicación | agentes |
+| 5 | división | skill `/add-operation` |
+| 6 | probar el lint | hooks |
+| 7 | todo en un comando | `harness.sh` |
 
 > Si prefieren, usen la misma operación en todos los pasos (reseteando `operations.ts`) para comparar la calidad del resultado de forma directa.
 
@@ -113,16 +119,39 @@ Agregar [CLAUDE.md](CLAUDE.md). Reiniciar la sesión (se lee al iniciar). Prompt
 
 > Agrega la resta
 
-**Observar:** ahora usa `subtract`, exporta por nombre, tipa parámetros y retorno, usa comillas simples y punto y coma, escribe en español y corre `npm test`, `npm run typecheck` y `npm run lint` por su cuenta. Pueden generarlo con `/init` y comparar.
-**Mensaje:** el contexto es la mejora más barata. Pero sigue siendo una sugerencia.
+**Observar:** ahora ubica `src/operations.ts`, escribe en español y corre `npm test`, `npm run typecheck` y `npm run lint` por su cuenta antes de terminar. Aún puede variar en los detalles del código (¿`any`? ¿comillas?). Pueden generarlo con `/init` y comparar.
+**Mensaje:** el contexto es la mejora más barata. Pero sigue siendo una sugerencia. (Al crearlo en vivo, omitan por ahora la sección que menciona `.claude/rules/`.)
 
-### Paso 2: Permisos (settings.json, parte 1)
+### Paso 2: Rules (convenciones por tipo de archivo)
+Agregar [typescript.md](.claude/rules/typescript.md) y [tests.md](.claude/rules/tests.md) en `.claude/rules/`, y la mención en `CLAUDE.md`. Cada una empieza con un `paths`:
+
+```markdown
+---
+paths:
+  - "src/**/*.ts"
+---
+```
+
+Prompt:
+
+> Repite la resta (borra la anterior) y escríbele sus tests
+
+**Observar:** al editar `src/operations.ts` Claude carga la regla de TypeScript (tipos explícitos, sin `any`, `RangeError`, comillas simples, imports sin extensión) y al crear `test/operations.test.ts` carga la de tests (`node:test`, nombres en español, tolerancia en decimales, `assert.throws` con el tipo).
+**Mensaje:** `CLAUDE.md` se mantiene corto y las convenciones específicas solo ocupan contexto cuando hacen falta. Es la diferencia con un `CLAUDE.md` de 200 líneas que Claude lee siempre.
+
+| | Rule | Skill |
+|---|---|---|
+| Responde a | "¿cómo debe ser este código?" | "¿cómo se hace esta tarea?" |
+| Se carga | Al tocar archivos que coinciden con `paths` | Cuando la tarea coincide con su `description` o con `/nombre` |
+| Contenido | Convenciones y restricciones | Pasos ordenados |
+
+### Paso 3: Permisos (settings.json, parte 1)
 Agregar solo el bloque `permissions` de [.claude/settings.json](.claude/settings.json).
 
 **Observar:** deja de pedir confirmación para `npm test`, `npm run typecheck` y `npm run lint`, y no puede leer ni editar `.env` ni hacer `rm -rf`.
 **Mensaje:** el harness define el radio de acción, no el modelo.
 
-### Paso 3: Agentes (delegar con contexto aislado)
+### Paso 4: Agentes (delegar con contexto aislado)
 Agregar [operation-writer](.claude/agents/operation-writer.md), [operation-tester](.claude/agents/operation-tester.md) y [code-reviewer](.claude/agents/code-reviewer.md). Prompt:
 
 > Agrega la multiplicación. Usa el agente operation-writer para implementarla, después operation-tester para escribir los tests y al final code-reviewer para revisar.
@@ -142,7 +171,7 @@ Agregar [operation-writer](.claude/agents/operation-writer.md), [operation-teste
 
 **Los agentes no se llaman entre sí.** El orquestador es la sesión principal (o el harness). Por eso aquí el prompt tiene que decir el orden; el siguiente paso evita repetirlo cada vez. Los agentes independientes (dos revisores sobre archivos distintos) pueden correr en paralelo; estos tres no, porque cada uno necesita el resultado del anterior.
 
-### Paso 4: Un skill (repetir un procedimiento)
+### Paso 5: Un skill (repetir un procedimiento)
 Agregar [add-operation](.claude/skills/add-operation/SKILL.md). Prompt:
 
 > /add-operation división
@@ -150,7 +179,7 @@ Agregar [add-operation](.claude/skills/add-operation/SKILL.md). Prompt:
 **Observar:** sin explicar el flujo, lanza writer → tester → reviewer en orden, devuelve los bugs al agente correcto y solo termina con APROBADO. La división es la mejor operación para la demo: el caso `divide(1, 0)` debe lanzar `RangeError` y no devolver `Infinity`. Si el writer lo olvida, el tester o el reviewer lo detectan.
 **Mensaje:** el skill codifica *cómo lo hace tu equipo* y le da el rol de orquestador a la sesión principal. Solo carga su contenido completo cuando se usa (la `description` es lo único que está siempre en contexto, por eso debe decir *cuándo* usarlo).
 
-### Paso 5: Hooks (automatización determinista)
+### Paso 6: Hooks (automatización determinista)
 Agregar el bloque `hooks` de [settings.json](.claude/settings.json). No hacen falta scripts: el hook es un comando de shell, el mismo que ya usas a mano:
 
 ```json
@@ -181,7 +210,7 @@ Cuando la lógica necesita decidir según el archivo o los parámetros (el hook 
 
 Comando útil: `/hooks` muestra los hooks activos.
 
-### Paso 6: El harness completo
+### Paso 7: El harness completo
 Con todo lo anterior, el flujo ya es un sistema. El último paso lo saca del chat: [scripts/harness.sh](scripts/harness.sh) usa `claude -p` (modo headless) para encadenar **implementar y probar → revisar → verificar** y devolver un código de salida.
 
 ```bash
@@ -199,7 +228,7 @@ Con todo lo anterior, el flujo ya es un sistema. El último paso lo saca del cha
                                  exit 0 / exit 1
 ```
 
-**Mensaje final:** en el paso 0 la calidad dependía del prompt. En el paso 6 depende del sistema: contexto, roles, procedimientos, reglas automáticas y una verificación objetiva. Eso es un harness. Se puede correr en CI, en lote sobre muchas operaciones o programado.
+**Mensaje final:** en el paso 0 la calidad dependía del prompt. En el paso 7 depende del sistema: contexto, roles, procedimientos, reglas automáticas y una verificación objetiva. Eso es un harness. Se puede correr en CI, en lote sobre muchas operaciones o programado.
 
 ---
 
@@ -209,11 +238,12 @@ Con todo lo anterior, el flujo ya es un sistema. El último paso lo saca del cha
 |---|---|---|---|
 | 0 | Nada | Modelo + herramientas | Ninguna |
 | 1 | `CLAUDE.md` | Contexto y convenciones | Sugerencia |
-| 2 | `permissions` | Límites | Del harness |
-| 3 | Agentes | Roles, herramientas limitadas, contexto aislado | Separación |
-| 4 | Skill | Orquestación repetible | Consistencia |
-| 5 | Hooks | Lint/tests/bloqueos | **Determinista** |
-| 6 | `harness.sh` | Automatización de punta a punta | Verificable (exit code) |
+| 2 | Rules | Convenciones por tipo de archivo, solo cuando aplican | Sugerencia (más precisa) |
+| 3 | `permissions` | Límites | Del harness |
+| 4 | Agentes | Roles, herramientas limitadas, contexto aislado | Separación |
+| 5 | Skill | Orquestación repetible | Consistencia |
+| 6 | Hooks | Tipos/lint/tests/bloqueos | **Determinista** |
+| 7 | `harness.sh` | Automatización de punta a punta | Verificable (exit code) |
 
 ## 5. Referencia: cómo debería quedar `operations.ts`
 
@@ -239,15 +269,17 @@ Señales de que el harness está funcionando: tipos explícitos sin `any`, nombr
 ## 6. Ejercicios para estudiantes
 
 1. Agregar `power` y `modulo` con `/add-operation` y comparar con hacerlo "a mano" (paso 0).
-2. Escribir un agente `docs-writer` que agregue JSDoc a cada función, y encadenarlo al flujo.
-3. Agregar un hook `Stop` propio (por ejemplo, correr `npx prettier --check .`).
-4. Quitar a propósito una línea de `CLAUDE.md` (por ejemplo, la de `RangeError`) y ver qué capa detecta el problema: el reviewer, los tests o nadie.
+2. Escribir una rule nueva `.claude/rules/scripts.md` con `paths: ["scripts/**"]` (por ejemplo: `set -euo pipefail` obligatorio) y verificar que solo se carga al editar `scripts/`.
+3. Escribir un agente `docs-writer` que agregue JSDoc a cada función, y encadenarlo al flujo.
+4. Agregar un hook `Stop` propio (por ejemplo, correr `npx prettier --check .`).
+5. Quitar a propósito una línea de `.claude/rules/typescript.md` (por ejemplo, la de `RangeError`) y ver qué capa detecta el problema: el reviewer, los tests o nadie.
 
 ## 7. Limitaciones a mencionar
 
 - Los hooks ejecutan comandos con **tus permisos**: revisar siempre los de un repo ajeno.
 - `CLAUDE.md` largo = más tokens y menos atención; mantenerlo corto y concreto.
-- Un skill o agente con mala `description` nunca se activa o se activa mal.
+- Un skill o agente con mala `description` nunca se activa o se activa mal; una rule con `paths` mal escrito nunca se carga.
+- Las rules son contexto, no cumplimiento forzado: lo que debe cumplirse sí o sí (tipos, estilo) además lo valida un hook o el linter.
 - Los subagentes no lanzan otros subagentes: la orquestación está en la sesión principal, el skill o el script.
 - El revisor y el generador son el mismo modelo: la verificación objetiva (tests, linter) pesa más que su opinión.
 - Los nombres de eventos y campos de configuración evolucionan; confirmar con la documentación oficial (`/help`, `/hooks`, docs.claude.com) antes de la clase.
