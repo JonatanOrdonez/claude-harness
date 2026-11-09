@@ -30,10 +30,11 @@ Librería mínima en TypeScript (Node 20+) con funciones aritméticas en `src/op
 
 ## Flujo para agregar una operación
 
-Cada operación nueva pasa por tres agentes, en orden y uno a la vez:
+Cada operación nueva pasa por cuatro agentes, en orden y uno a la vez:
 
-1. `operation-writer`: implementa la función en `src/operations.ts`.
-2. `operation-tester`: escribe los tests en `test/operations.test.ts`.
-3. `code-reviewer`: revisa y da el veredicto.
+1. `operation-planner`: planifica (firma, casos de error, casos de prueba); no escribe código.
+2. `operation-writer`: implementa la función en `src/operations.ts`.
+3. `operation-tester`: escribe los tests en `test/operations.test.ts`.
+4. `code-reviewer`: revisa y da el veredicto.
 
 El skill `/add-operation` describe este flujo.
